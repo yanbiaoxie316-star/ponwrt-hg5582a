@@ -1,146 +1,65 @@
 name: Build PonWrt HG5582A PON
-
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Release tag
-        required: true
-        type: string
-      prerelease:
-        description: Mark as prerelease
-        required: true
-        default: true
-        type: boolean
-
-permissions:
-  contents: read
-
-concurrency:
-  group: release-${{ inputs.tag }}
-  cancel-in-progress: false
-
+  push:
+    branches: [ main ]
+  workflow_dispatch: # 网页手动一键触发编译
 jobs:
   build:
-    name: Build ${{ matrix.target }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    environment: release
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - an7581
-
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6
+      - name: 检出仓库文件
+        uses: actions/checkout@v4
 
-      - name: Free build space
+      - name: 扩容磁盘空间（必做，源码占用巨大）
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
-          sudo apt-get clean
+          df -h
 
-      - name: Install build dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: 安装编译依赖
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            asciidoc autoconf automake autopoint binutils bison build-essential \
-            bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk \
-            gettext git g++-multilib gcc-multilib gperf help2man intltool \
-            libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev \
-            libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev \
-            libtool libyaml-dev lld llvm ninja-build p7zip-full patch pkgconf \
-            python3 python3-docutils python3-pip python3-ply python3-pyelftools \
-            qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo \
-            uglifyjs unzip wget xmlto xxd zlib1g-dev zstd
+          sudo apt update -y
+          sudo apt full-upgrade -y
+          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib \
+            g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev \
+            libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev \
+            libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
+            ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils \
+            python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs \
+            upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstdsion quilt python3 python3-pip unzip rsync time
 
-      - name: Cache downloads
-        uses: actions/cache@v4
-        with:
-          path: dl
-          key: ponwrt-dl-${{ matrix.target }}-${{ hashFiles('feeds.conf.default', 'configs/*.config') }}
-          restore-keys: |
-            ponwrt-dl-${{ matrix.target }}-
-
-      - name: Install feeds
+      - name: 拉取 PonWrt 源码
         run: |
+          git clone https://github.com/pbs05/ponwrt.git
+          cd ponwrt
+
+      - name: 导入HG5582A带PON的配置
+        run: |
+          cp configs/an7581.config .config
+          cd an7581
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-
-      - name: Load repository signing key
-        env:
-          PONWRT_APK_PRIVATE_KEY: ${{ secrets.PONWRT_APK_PRIVATE_KEY }}
-        run: |
-          if [ -n "$PONWRT_APK_PRIVATE_KEY" ]; then
-            umask 077
-            printf '%s\n' "$PONWRT_APK_PRIVATE_KEY" > private-key.pem
-            openssl ec -in private-key.pem -pubout -out public-key.pem
-          fi
-
-      - name: Configure ${{ matrix.target }}
-        run: |
-          ./scripts/kconfig.pl + \
-            "configs/${{ matrix.target }}.config" \
-            configs/release.config > .config
           make defconfig
 
-      - name: Download sources
-        run: make download -j"$(nproc)"
+      - name: 缓存dl源码包（大幅加速后续编译）
+        uses: actions/cache@v4
+        with:
+          path: ponwrt/dl
+          key: ponwrt-dl-${{ hashFiles('.config') }}
 
-      - name: Build ${{ matrix.target }}
-        run: make -j"$(nproc)"
-
-      - name: Pack ${{ matrix.target }}
+      - name: 预下载源码包
         run: |
-          mkdir release
-          tar --zstd -cf "release/ponwrt-${{ matrix.target }}.tar.zst" \
-            -C bin/targets/airoha "${{ matrix.target }}"
+          cd ponwrt
+          make download -j$(nproc)
 
-      - name: Upload ${{ matrix.target }}
+      - name: 编译 PonWrt 固件（带PON驱动）
+        run: |
+          cd ponwrt
+          make -j$(nproc) V=s
+
+      - name: 上传固件成品
         uses: actions/upload-artifact@v4
         with:
-          name: ponwrt-${{ matrix.target }}
-          path: release/*.tar.zst
-          if-no-files-found: error
+          name: PonWrt-HG5582A-PON-Firmware
+          path: ponwrt/bin/targets/**/*.bin
           retention-days: 7
-
-  release:
-    name: Create release
-    needs: build
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download firmware archives
-        uses: actions/download-artifact@v4
-        with:
-          pattern: ponwrt-*
-          path: release
-          merge-multiple: true
-
-      - name: Create checksums
-        working-directory: release
-        run: sha256sum *.tar.zst > sha256sums
-
-      - name: Create GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
-          PRERELEASE: ${{ inputs.prerelease }}
-        run: |
-          args=(
-            "$RELEASE_TAG"
-            release/*.tar.zst
-            release/sha256sums
-            --repo "$GITHUB_REPOSITORY"
-            --target "$GITHUB_SHA"
-            --title "PonWrt $RELEASE_TAG"
-            --generate-notes
-          )
-          if [ "$PRERELEASE" = true ]; then
-            args+=(--prerelease)
-          fi
-          gh release create "${args[@]}"
