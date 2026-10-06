@@ -33,7 +33,7 @@ jobs:
           git clone https://github.com/pbs05/ponwrt.git
           cd ponwrt
 
-      - name: 导入fiberhome_hg5382a的配置
+      - name: 导入Config-build.in的配置
         run: |
           cp configs/an7581.config .config
           cd configs/an7581
