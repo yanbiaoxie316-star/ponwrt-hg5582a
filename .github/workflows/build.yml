@@ -1,0 +1,57 @@
+name: Build PonWrt HG5582A
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # 网页手动触发编译（核心）
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出仓库文件
+        uses: actions/checkout@v4
+
+      - name: 扩容磁盘空间（必须，源码占用大）
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: 安装编译依赖
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential flex bison git libssl-dev libelf-dev gawk libncurses5-dev subversion quilt python3 python3-pip unzip rsync time
+
+      - name: 拉取 PonWrt 源码
+        run: |
+          git clone https://github.com/ponwrt/ponwrt.git openwrt
+          cd openwrt
+
+      - name: 导入HG5582A配置
+        run: |
+          cp .config openwrt/.config
+          cd openwrt
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          make defconfig
+
+      - name: 缓存dl源码包（下次编译加速）
+        uses: actions/cache@v4
+        with:
+          path: openwrt/dl
+          key: ponwrt-dl-${{ hashFiles('.config') }}
+
+      - name: 预下载源码包
+        run: |
+          cd openwrt
+          make download -j$(nproc)
+
+      - name: 编译 PonWrt 固件
+        run: |
+          cd openwrt
+          make -j$(nproc) V=s
+
+      - name: 上传固件成品
+        uses: actions/upload-artifact@v4
+        with:
+          name: PonWrt-HG5582A-Firmware
+          path: openwrt/bin/targets/**/*.bin
+          retention-days: 7
