@@ -36,7 +36,6 @@ jobs:
       - name: 导入fiberhome_hg5382a的配置
         run: |
           cp configs/an7581.config .config
-          cd fiberhome_hg5382a
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           make defconfig
