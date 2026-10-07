@@ -16,6 +16,8 @@ jobs:
           df -h
 
   #  Install the required toolchain and libraries for building
+  - name: 安装编译依赖
+        run: |
 sudo apt update -y
 sudo apt full-upgrade -y
 sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
@@ -32,6 +34,8 @@ sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_en
 
 
 #  Clone the source code
+- name: 拉取 PonWrt 源码
+        run: |
 git clone https://github.com/pbs05/ponwrt.git
 cd ponwrt
 
@@ -42,10 +46,13 @@ cd ponwrt
 
 
 #  Select a configuration, using 7581 as an example
+- name: 导入HG5582A配置
+        run: |
 cp configs/an7581.config .config
 
 
-
+- name: 预下载源码包
+        run: |
 #  Start building
 # -j$(nproc) means compiling in parallel with all CPU cores to speed things up
 make defconfig
