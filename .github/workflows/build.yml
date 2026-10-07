@@ -1,4 +1,4 @@
-name: Build PonWrt HG5582A PON
+name: fiberhome_hg5382a
 on:
   push:
     branches: [ main ]
@@ -33,10 +33,10 @@ jobs:
           git clone https://github.com/pbs05/ponwrt.git
           cd ponwrt
 
-      - name: 导入Config-build.in的配置
+      - name: 导入fiberhome_hg5382a的配置
         run: |
           cp configs/an7581.config .config
-          cd configs/an7581.config
+          cd fiberhome_hg5382a
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           make defconfig
