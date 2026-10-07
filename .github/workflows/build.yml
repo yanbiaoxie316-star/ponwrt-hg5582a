@@ -35,7 +35,7 @@ jobs:
       - name: 导入HG5582A配置
         run: |
           cp configs/an7581.config .config
-          cd configs/an7581.config
+          cd airoha_an7581_DEVICE_fiberhome_hg5382a
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           make defconfig
