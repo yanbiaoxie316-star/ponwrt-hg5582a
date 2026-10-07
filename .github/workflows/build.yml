@@ -32,10 +32,9 @@ sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bis
 #  Or use the ImmortalWrt one-click script to install dependencies
 sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
 
-
-#  Clone the source code
 - name: 拉取 PonWrt 源码
-        run: |
+        run: 
+#  Clone the source code|
 git clone https://github.com/pbs05/ponwrt.git
 cd ponwrt
 
